@@ -1,2 +1,2 @@
-# Cwaco
+# Cwago
 Rust製ゲームエンジンです。
