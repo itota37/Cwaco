@@ -1,0 +1,20 @@
+# --------------------
+#
+# Cwago.
+#
+# cwago/cwago_utility/Cargo.toml
+# (C) 2022 Taichi Ito.
+# ====================
+
+# cwago_utility クレートのCargo.tomlです。
+
+[package]
+name = "cwago_utility"
+version = "1.0.0"
+authors = ["Taichi Ito."]
+edition = "2021"
+
+[lib]
+create-type = ["rlib"]
+
+[dependencies]
