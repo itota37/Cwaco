@@ -8,16 +8,6 @@
 
 //! ECS基本機能を提供します。
 
+pub mod err;
 pub mod ent;
 pub mod comp;
-pub mod sys;
-pub mod ecs;
-
-//
-// やること
-//
-// ECS機能作成
-// System-EventからのみComponent-Iterが取得できるようにする
-//
-// ECS.despawnを作る
-//

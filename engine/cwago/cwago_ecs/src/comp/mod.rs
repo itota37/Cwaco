@@ -2,11 +2,13 @@
 //
 // Cwago.
 //
-// cwago/cwago_ecs/src/comp/mod.rs
+// cwago/cwago_ecs/src/sys/comp/mod.rs
 // (C) 2022 Taichi Ito.
 // ====================
 
-//! ECS-Component機能を提供します。
+//! ECSコンポーネントを提供します。
 
-pub mod ty;
 pub mod data;
+pub mod ty;
+pub(crate) mod chunk;
+pub mod world;

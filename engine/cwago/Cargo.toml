@@ -1,16 +1,16 @@
 # --------------------
 #
-# Cwaco.
+# Cwago.
 #
-# cwaco/Cargo.toml
+# cwago/Cargo.toml
 # (C) 2022 Taichi Ito.
 # ====================
 
-# cwaco ワークスペースのCargo.tomlです。
+# cwago ワークスペースのCargo.tomlです。
 
 [workspace]
 members = [
 
-    "cwaco_ecs",
-    "cwaco_utility",
+    "cwago_ecs",
+    "cwago_utility",
 ]

@@ -2,324 +2,167 @@
 //
 // Cwago.
 //
-// cwago/cwago_ecs/src/component/data.rs
+// cwago/cwago_ecs/src/sys/comp/data.rs
 // (C) 2022 Taichi Ito.
 // ====================
 
-//! Component-Dataを提供します。
+//! コンポーネントデータを定義するトレイトと関連機能を提供します。
 
 use std::{
-    collections::VecDeque, 
-    sync::{
-        Arc, 
-        atomic::AtomicBool
-    },
-    fmt::Display
+    marker::PhantomData, 
+    mem::transmute
 };
-use cwago_utility::hash::FxHashMap;
-use crate::ent::Id;
+use crate::err::Error;
 use super::ty::{
-    self,
-    Request, 
-    Type,
-    Datas
+    Type, 
+    Buffers, 
+    BufferPattern
 };
 
-/// Componentのデータを定義するトレイトです。
+/// コンポーネントデータを定義するトレイトです。
 pub trait Data: Clone + 'static {}
 
-/// Idと関連データの集合です。
-pub(crate) struct Chunk {
+/// データを一時保存する構造体です。
+pub(crate) struct Datas {
 
-    ids: Vec<Id>,                     // Entity-Idのリストです。
-    datas: FxHashMap<Type, DataInfo>, // 型別データ情報です。
+    /// 型別のデータバッファです。
+    datas: Vec<(Type, Vec<u8>)>,
 }
-impl Chunk {
 
+/// 不変コンポーネントデータイテレータです。
+pub struct DataIter<'i, D> 
+where D: Data {
+
+    _dummy: PhantomData<&'i D>,
+    buffs: Vec<(*const u8, usize)>,
+    step: usize,
+    buff_idx: usize,
+    data_idx: usize,
+}
+impl<'i, D> DataIter<'i, D> 
+where D: Data {
+    
     /// 生成します。
     /// 
     /// # Arguments
     /// 
-    /// * `req` - 生成するリクエストです。
+    /// * `buffs` - 型別バッファリストです。
     /// 
-    pub(crate) fn new(req: &Request) -> Self {
+    fn new(buffs: &Buffers) -> Result<Self, Error> {
 
-        // 空のIdリスト、型ごとにバッファが用意された状態で生成します。
-        
-        let ids = Vec::new();
-        let mut datas = FxHashMap::default();
-        for ty in req.get() {
-
-            datas.insert(ty.clone(), DataInfo::new(ty.size()));
-        }
-
-        Chunk { ids, datas }
-    }
-    
-    /// リクエストと一致するか判定します。
-    /// 
-    /// # Arguments
-    /// 
-    /// * `req` - 判定するリクエストです。
-    /// 
-    pub(crate) fn match_req(&self, req: &Request) -> bool {
-        
-        let tys = req.get();
-        
-        // 長さを判定します。
-        if self.datas.len() != tys.len() { return false; }
-        
-        // 各要素を判定します。
-        for ty in tys {
-            
-            if !self.datas.contains_key(ty) { return false; }
-        }
-        
-        true
-    }
-
-    /// Idにデータをアタッチします。
-    /// 
-    /// # Arguments
-    /// 
-    /// * `id` - データと関連付けるIdです。
-    /// * `args` - 初期化データリストです。
-    /// 
-    pub(crate) fn attach(&mut self, id: &Id, args: &Datas) -> Result<usize, Error>{
-        
-        let req = &args.request();
-
-        // 型が一致しているか判定します。
-        if !self.match_req(req) { return Err(Error::TypeError(ty::Error::MissingType)); }
-        
-        // 追加位置を取得し、新たなIdを追加します。
-        let idx = self.ids.len();
-        self.ids.push(id.clone());
-        
-        // 各データの追加と初期化をします。
-        for ty in req.get() {
-            
-            let from = args
-            .get(ty)
-            .expect("重大なエラーが発生しました。Chunk/spawn/0"); // このエラーが発生した場合、match_reqが機能していない場合があります。
-
-            // 初期化するメモリの位置を取得します。
-            let to = self.datas
-            .get_mut(ty)
-            .expect("重大なエラーが発生しました。Chunk/spawn/1") // このエラーが発生した場合、match_reqが機能していない場合があります。
-            .push();
-            
-            // 初期化値を代入します。
-            ty.copy_ptr(from, to);
-        }
-        
-        Ok(idx)
-    } 
-    
-    /// Idとデータをデタッチします。
-    /// 
-    /// # Arguments
-    /// 
-    /// * `idx` - 位置です。
-    /// 
-    pub(crate) fn dettach(&mut self, idx: usize) -> Result<(), Error> {
-        
-        for (ty, info) in self.datas.iter_mut() {
-            
-            if let (Some(to), Some(from)) = (info.get_mut(idx), info.last_mut()) {
-                
-                if to == from {
-                    
-                    ty.drop_ptr(to);
-                    
-                } else {
-                    
-                    ty.drop_ptr(to);
-                    ty.copy_ptr(from, to);
-                    ty.drop_ptr(from);
+        let ty = Type::of::<D>();
+        if let Some(pattern) = buffs.get(&ty) {
+            if let BufferPattern::Const(infos) = pattern {
+                let mut buffs = Vec::new();
+                for info in infos {
+                    buffs.push((info.buffer(), info.len()));
                 }
-                
-            } else {
-                
-                return Err(Error::IndexOverflow);
+
+                return Ok(DataIter {
+                    _dummy: PhantomData::default(),
+                    buffs,
+                    step: ty.size(),
+                    buff_idx: 0,
+                    data_idx: 0,
+                });
             }
         }
-        
-        Ok(())
+        Err(Error::MissmatchType)
     }
+}
+impl<'i, D> Iterator for DataIter<'i, D> 
+where D: Data {
     
-    /// 指定位置のデータを取得します。
-    /// 
-    /// # Arguments
-    /// 
-    /// * `idx` - 位置です。
-    /// 
-    pub(crate) fn datas(&self, idx: usize) -> Result<Datas, Error> {
-        
-        let mut datas = FxHashMap::default();
-        for (ty, info) in self.datas.iter() {
-            
-            if let Some(ptr) = info.get(idx) {
-                
-                datas.insert(*ty, ptr);
-                
-            } else {
-                
-                return Err(Error::IndexOverflow);
-            }
+    type Item = &'i D;
+
+    fn next(&mut self) -> Option<Self::Item> {
+
+        // ポインタを取得します。
+        let (ptr, len) = self.buffs.get(self.buff_idx)?;
+        let ptr = unsafe {
+            let ptr = ptr.add(self.step * self.data_idx);
+            transmute::<*const u8, *const D>(ptr)
+        };
+
+        // 一つ進めます。
+        self.data_idx += 1;
+        if self.data_idx == *len {
+            self.data_idx = 0;
+            self.buff_idx += 1;
         }
-        
-        Ok(Datas::new(datas))
+
+        unsafe { ptr.as_ref::<'i>() }
     }
 }
 
-/// 1つの型の生配列情報です。
-struct DataInfo {
+/// 可変コンポーネントデータイテレータです。
+pub struct DataIterMut<'i, D> 
+where D: Data {
 
-    buffer: Vec<u8>,                  // 生データです。
-    size: usize,                      // 型のサイズです。
-    flag: AccessFlag,                 // 状態フラグです。
-    waits: VecDeque<Arc<AtomicBool>>, // アクセス待ちワーカーの待機フラグキューです。
+    _dummy: PhantomData<&'i mut D>,
+    buffs: Vec<(*mut u8, usize)>,
+    step: usize,
+    buff_idx: usize,
+    data_idx: usize,
 }
-impl DataInfo {
+impl<'i, D> DataIterMut<'i, D> 
+where D: Data {
     
     /// 生成します。
-    ///
+    /// 
     /// # Arguments
-    ///
-    /// * `size` - 型のサイズです。
-    ///
-    fn new(size: usize) -> Self {
+    /// 
+    /// * `buffs` - 型別バッファリストです。
+    /// 
+    fn new(buffs: &Buffers) -> Result<Self, Error> {
 
-        DataInfo { 
-            buffer: Vec::new(), 
-            size,
-            flag: AccessFlag::Free, 
-            waits: VecDeque::new() 
+        let ty = Type::of::<D>();
+        if let Some(pattern) = buffs.get(&ty) {
+            if let BufferPattern::Mut(infos) = pattern {
+                let mut buffs = Vec::new();
+                for info in infos {
+                    buffs.push((info.buffer(), info.len()));
+                }
+
+                return Ok(DataIterMut {
+                    _dummy: PhantomData::default(),
+                    buffs,
+                    step: ty.size(),
+                    buff_idx: 0,
+                    data_idx: 0,
+                });
+            }
         }
+        Err(Error::MissmatchType)
     }
+}
+impl<'i, D> Iterator for DataIterMut<'i, D> 
+where D: Data {
     
-    /// 領域を追加します。
-    fn push(&mut self) -> *mut u8 {
-        
-        // 追加位置の先頭位置を取得します。
-        let idx = self.buffer.len();
-        // 追加します。
-        for _ in 0..self.size {
-            
-            self.buffer.push(0_u8);
+    type Item = &'i mut D;
+
+    fn next(&mut self) -> Option<Self::Item> {
+
+        // ポインタを取得します。
+        let (ptr, len) = self.buffs.get(self.buff_idx)?;
+        let ptr = unsafe {
+            let ptr = ptr.add(self.step * self.data_idx);
+            transmute::<*mut u8, *mut D>(ptr)
+        };
+
+        // 一つ進めます。
+        self.data_idx += 1;
+        if self.data_idx == *len {
+            self.data_idx = 0;
+            self.buff_idx += 1;
         }
-        
-        // 追加位置のポインタを返します。
-        unsafe {
-            self.buffer
-            .as_mut_ptr()
-            .add(idx)
-        }
-    }
-    
-    /// 指定位置の不変ポインタを取得します。
-    ///
-    /// # Arguments
-    ///
-    /// * `idx` - 指定の位置です。
-    ///
-    fn get(&self, idx: usize) -> Option<*const u8> {
-        
-        let idx = self.size * idx;
-        if idx < self.buffer.len() {
-            
-            Some(unsafe {
-                self.buffer
-                .as_ptr()
-                .add(idx)
-            })
-            
-        } else {
-        
-            None
-        }
-    }
-    
-    /// 指定位置の可変ポインタを取得します。
-    ///
-    /// # Arguments
-    ///
-    /// * `idx` - 指定の位置です。
-    ///
-    fn get_mut(&mut self, idx: usize) -> Option<*mut u8> {
-        
-        let idx = self.size * idx;
-        if idx < self.buffer.len() {
-            
-            Some(unsafe {
-                self.buffer
-                .as_mut_ptr()
-                .add(idx)
-            })
-            
-        } else {
-        
-            None
-        }
-    }
-    
-    /// 末尾の要素の不変ポインタを取得します。
-    fn last_mut(&mut self) -> Option<*mut u8> {
-    
-        if self.buffer.is_empty() 
-        && self.buffer.len() < self.size {
-            
-            None
-            
-        } else {
-            
-            let idx = self.buffer.len() - self.size;
-            Some(unsafe {
-                self.buffer
-                .as_mut_ptr()
-                .add(idx)
-            })
-        }
+
+        unsafe { ptr.as_mut::<'i>() }
     }
 }
 
-/// 現在のアクセス状態です。
-enum AccessFlag {
-
-    Free,         // どこからも参照されていません。
-    Const(usize), // 複数から不変参照されています。
-    Mut,          // 1つの可変参照されています。
-}
-
-/// エラーです。
-#[derive(Debug)]
-pub enum Error {
-    
-    /// 配列の要素数を超えています。
-    IndexOverflow, 
-    /// 型情報に起因するエラーです。
-    TypeError(ty::Error),
-}
-impl Display for Error {
-
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        
-        match self {
-
-            Error::IndexOverflow => f.write_str("配列の要素数を超えています。"),
-            Error::TypeError(err) => f.write_fmt(format_args!("型情報に起因するエラーです。>> {}", err.to_string())),
-        }
-    }
-}
-impl std::error::Error for Error {
-
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        
-        match self {
-            
-            Error::TypeError(err) => Some(err),
-            _ => None
-        }
-    }
-}
+// -----
+//
+// TupleIterX
+//
+// =====
