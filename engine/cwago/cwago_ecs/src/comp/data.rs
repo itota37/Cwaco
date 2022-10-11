@@ -16,7 +16,9 @@ use crate::err::Error;
 use super::ty::{
     Type, 
     Buffers, 
-    BufferPattern
+    BufferPattern, 
+    Archetype,
+    Request
 };
 
 /// コンポーネントデータを定義するトレイトです。
@@ -161,8 +163,32 @@ where D: Data {
     }
 }
 
-// -----
-//
-// TupleIterX
-//
-// =====
+// タプルイテレータです。
+pub struct TupleIter1<T0> 
+where T0: Archetype {
+    iters: T0::Iter,
+}
+impl<T0> Iterator for TupleIter1<T0> 
+where T0: Archetype {
+    
+    type Item = <T0::Iter as Iterator>::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iters.next()
+    }
+}
+impl<T0> Archetype for (T0,) 
+where T0: Archetype {
+    
+    type Iter = TupleIter1<T0>;
+
+    fn for_request() -> Request {
+        T0::for_request()
+    }
+
+    fn for_iter(buff: &Buffers) -> Self::Iter {
+        TupleIter1 {
+            iters: T0::for_iter(buff)
+        }
+    }
+}

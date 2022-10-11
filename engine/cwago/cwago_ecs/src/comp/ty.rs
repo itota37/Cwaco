@@ -13,10 +13,12 @@ use std::{
         TypeId, 
         type_name
     }, 
-    mem::size_of, hash::Hash, fmt::Display
+    mem::size_of, 
+    hash::Hash, 
+    fmt::Display
 };
 
-use cwago_utility::hash::FxHashMap;
+use cwago_utility::hash::{FxHashMap, FxHashSet};
 
 /// ランタイム型情報です。
 #[derive(Debug, Clone, Copy)]
@@ -95,7 +97,8 @@ impl Hash for Type {
 }
 
 /// コンポーネントアクセス時に指定可能な型を定義するトレイトです。
-pub trait Archetype {
+pub trait Archetype 
+where Self::Iter: Iterator {
     
     /// コンポーネントのバッファにアクセスするためのイテレータ型です。
     type Iter;
@@ -108,13 +111,36 @@ pub trait Archetype {
 }
 
 /// アクセスするコンポーネントを指定したランタイム時構造体です。
+#[derive(Debug)]
 pub struct Request {
 
     /// 型情報のリストです。
     types: Vec<TypePattern>,
 }
+impl Request {
+
+    /// 作成します。
+    pub(crate) fn new() -> Self {
+        Request { 
+            types: Vec::new() 
+        }
+    }
+
+    /// 重複なしに追加します。
+    pub(crate) fn append(&mut self, rhs: &Request) {
+        let mut set = FxHashSet::default();
+        for ty in &self.types {
+            set.insert(ty.clone());
+        }
+        for ty in &rhs.types {
+            set.insert(ty.clone());
+        }
+        self.types = set.into_iter().collect();
+    }
+}
 
 /// アクセスパターンの列挙と型情報です。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum TypePattern {
 
     /// 不変参照です。
