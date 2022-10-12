@@ -50,7 +50,7 @@ impl World {
     /// 
     pub fn spawn<A>(&mut self, args: A) -> Result<Id, Error> 
     where A: Archetype {
-
+        let req = A::for_request();
     }
 }
 

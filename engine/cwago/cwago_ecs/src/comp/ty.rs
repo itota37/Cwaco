@@ -17,8 +17,11 @@ use std::{
     hash::Hash, 
     fmt::Display
 };
-
-use cwago_utility::hash::{FxHashMap, FxHashSet};
+use cwago_utility::hash::{
+    FxHashMap, 
+    FxHashSet
+};
+use crate::err::Error;
 
 /// ランタイム型情報です。
 #[derive(Debug, Clone, Copy)]
@@ -107,7 +110,7 @@ where Self::Iter: Iterator {
     fn for_request() -> Request;
 
     /// バッファのマップからバッファにアクセスするイテレータを生成します。
-    fn for_iter(buff: &Buffers) -> Self::Iter;
+    fn for_iter(buff: &Buffers) -> Result<Self::Iter, Error>;
 }
 
 /// アクセスするコンポーネントを指定したランタイム時構造体です。
@@ -119,10 +122,22 @@ pub struct Request {
 }
 impl Request {
 
-    /// 作成します。
+    /// 生成します。
     pub(crate) fn new() -> Self {
         Request { 
             types: Vec::new() 
+        }
+    }
+
+    /// 作成します。
+    /// 
+    /// # Arguments
+    /// 
+    /// * `ty` - 型パターンです。
+    /// 
+    pub(crate) fn from_pattern(ty: TypePattern) -> Self {
+        Request { 
+            types: vec![ty] 
         }
     }
 
