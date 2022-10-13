@@ -9,5 +9,6 @@
 //! ECS基本機能を提供します。
 
 pub mod err;
+pub mod ty;
 pub mod ent;
 pub mod comp;
