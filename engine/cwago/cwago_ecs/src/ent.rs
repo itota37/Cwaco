@@ -9,13 +9,16 @@
 //! ECSエンティティを提供します。
 
 use std::future::Future;
-
-use cwago_utility::hash::FxHashSet;
+use cwago_utility::hash::{FxHashSet, FxHashMap};
 use crate::{
-    comp::World,
+    comp::{
+        World,
+        Value, Data
+    },
     ty::{
         Archetype, 
-        Type, RefType
+        Type, 
+        RefType,
     }, 
     err::Error
 };
@@ -58,8 +61,8 @@ impl Id {
 /// エンティティシステムです。
 pub struct Entity<'w> {
 
-    id: Id,
     world: &'w mut World,
+    values: FxHashMap<Type, Value>,
     types: FxHashSet<RefType>,
 }
 impl<'w> Entity<'w> {
@@ -68,31 +71,35 @@ impl<'w> Entity<'w> {
     /// 
     /// # Arguments
     /// 
-    /// * `id` - 操作対象のエンティティIDです。
     /// * `world` - idを管理しているワールドシステムです。
     /// 
-    pub(crate) fn new(id: Id, world: &'w mut World) -> Self {
+    pub(crate) fn new(world: &'w mut World) -> Self {
         Entity {
-            id,
             world,
+            values: FxHashMap::default(),
             types: FxHashSet::default()
         }
     }
 
-    /// 型指定します。
+    /// 型と初期値を設定します。
     /// 
     /// # Argument
     /// 
     /// * `arg` - 初期値です。
     /// 
-    pub fn request<A>(self, arg: A) -> Self
-    where A: Archetype {
-        self.types.insert(A::for_type());
+    pub fn insert<D>(self, arg: D) -> Self
+    where D: Data {
+        self.values.insert(Type::of::<D>(), Value::from_data(arg));
         self
     }
 
-    // アタッチします。
-    pub fn attach(self) -> Result<Id, Error> {
-        self.world.attach(self.id, self.types)
+    /// 対象のIdを設定します。
+    /// 
+    /// # Argument
+    /// 
+    /// * `id` - 対象のIdです。
+    /// 
+    pub fn to(id: Id) {
+
     }
 }

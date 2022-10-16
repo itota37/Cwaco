@@ -29,6 +29,10 @@ pub enum Error {
     /// デッドロックしています。
     /// 同スレッドで同データにアクセスしようとした可能性があります。
     DeadLock,
+
+    /// 区別されない内部エラーです。
+    /// 通常起こりえないような重大なエラーの可能性があります。
+    InnerError(String),
 }
 impl error::Error for Error {
 
@@ -46,6 +50,7 @@ impl Display for Error {
             Error::DuplicateType => f.write_str("指定された型が重複しています。"),
             Error::MissmatchType => f.write_str("型が一致していません。"),
             Error::DeadLock => f.write_str("デッドロックしています。"),
+            Error::InnerError(s) => f.write_str(s.as_str()),
         }
     }
 }

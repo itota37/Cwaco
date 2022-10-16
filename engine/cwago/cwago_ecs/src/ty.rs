@@ -8,20 +8,37 @@
 
 //! コンポーネントに関連する型情報を提供します。
 
+// 目次
+// --------------------
+// Type
+// RefType
+// Archetype
+// ====================
+
 use std::{
     any::{
         TypeId, 
         type_name
     }, 
-    mem::size_of, 
+    mem::{size_of, transmute}, 
     hash::Hash, 
-    fmt::Display
+    fmt::Display, ptr::drop_in_place
 };
 use cwago_utility::hash::{
     FxHashMap, 
     FxHashSet
 };
-use crate::err::Error;
+use crate::{err::Error, comp::Data};
+
+
+
+// --------------------
+//
+// Type
+//
+// ====================
+
+
 
 /// ランタイム型情報です。
 #[derive(Debug, Clone, Copy)]
@@ -29,23 +46,43 @@ pub struct Type {
 
     /// 型IDです。
     id: TypeId,
-
     /// 型名です。
     name: &'static str,
-
     /// 型サイズです。
     size: usize,
+    /// ドロップ関数オブジェクトです。
+    drop_obj: fn(*mut u8),
+    /// クローン関数オブジェクトです。
+    clone_obj: fn(*const u8, *mut u8),
 }
 impl Type {
     
     /// ランタイム型情報を取得します。
-    pub fn of<T>() -> Self
-    where T: Sized + 'static {
+    pub fn of<D>() -> Self
+    where D: Data {
 
         Type { 
-            id: TypeId::of::<T>(), 
-            name: type_name::<T>(), 
-            size: size_of::<T>() 
+            id: TypeId::of::<D>(), 
+            name: type_name::<D>(), 
+            size: size_of::<D>(),
+            drop_obj: |ptr: *mut u8| unsafe { 
+                drop_in_place(transmute::<*mut u8, *mut D>(ptr)); 
+            },
+            clone_obj: |from_ptr: *const u8, to_ptr: *mut u8| unsafe { 
+                let from_ptr = transmute::<*const u8, *const D>(from_ptr);
+                let to_ptr = transmute::<*mut u8, *mut D>(to_ptr);
+                let from_ref = from_ptr.as_ref()
+                .expect(
+                    format_args!("重大なエラーが発生しました。[cwago_ecs/src/ty.rs : Type::of<{}>/0]", 
+                    type_name::<D>()).as_str().unwrap()
+                );
+                let to_ref = to_ptr.as_mut()
+                .expect(
+                    format_args!("重大なエラーが発生しました。[cwago_ecs/src/ty.rs : Type::of<{}>/1]", 
+                    type_name::<D>()).as_str().unwrap()
+                );
+                *to_ref = from_ref.clone();
+            }
         }
     }
 
@@ -65,6 +102,27 @@ impl Type {
     pub fn size(&self) -> usize {
 
         self.size
+    }
+
+    /// バッファ上のデータをドロップします。
+    /// 
+    /// # Arguments 
+    /// 
+    /// * `ptr` - データのポインタです。
+    /// 
+    pub(crate) fn drop_ptr(&self, ptr: *mut u8) {
+        (self.drop_obj)(ptr);
+    }
+
+    /// バッファ上のデータを別のバッファへクローンさせます。
+    /// 
+    /// # Arguments
+    /// 
+    /// * `from_ptr` - クローン元のポインタです。
+    /// * `to_ptr` - クローン先のポインタです。
+    /// 
+    pub(crate) fn clone_ptr(&self, from_ptr: *const u8, to_ptr: *mut u8) {
+        (self.clone_obj)(from_ptr, to_ptr);
     }
 }
 impl Display for Type {
@@ -98,6 +156,16 @@ impl Hash for Type {
         self.id.hash(state);
     }
 }
+
+
+
+// --------------------
+//
+// RefType
+//
+// ====================
+
+
 
 /// ランタイム参照型情報です。
 #[derive(Debug, Clone, Copy)]
@@ -189,6 +257,16 @@ impl Hash for RefType {
         }
     }
 }
+
+
+
+// --------------------
+//
+// Archetype
+//
+// ====================
+
+
 
 /// 指定型の条件を定義します。
 pub trait Archetype {
