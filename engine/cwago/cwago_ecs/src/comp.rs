@@ -12,6 +12,7 @@
 // --------------------
 // Data
 // World
+// Components
 // Point
 // Chunk
 // Value
@@ -39,7 +40,7 @@ use cwago_utility::hash::{
 use crate::{
     ent::{
         Id, 
-        Entity, 
+        Entity, UpdateInfo, 
     }, 
     err::Error, ty::{RefType, Type}
 };
@@ -71,11 +72,12 @@ pub trait Data: Clone + 'static {
 /// ワールドシステムです。
 pub struct World {
 
-    id_cnt: u32,
-    points: Vec<Option<Point>>,
-    chunks: Arc<Mutex<Vec<Chunk>>>,
-    spawns: Arc<Mutex<Vec<SpawnRes>>>, 
-    despawns: Arc<Mutex<Vec<DespawnRes>>>
+    id_cnt: u32,                                   // Id.indexのカウントです。
+    points: Vec<Option<Point>>,                    // Id.indexを添え字にしたデータ位置情報の配列です。
+    chunks: Arc<Mutex<Vec<Chunk>>>,                // チャンク配列です。
+    spawns: Arc<Mutex<Vec<SpawnRes>>>,             // Id生成フューチャーの配列です。
+    despawns: Arc<Mutex<Vec<DespawnRes>>>,         // Id削除フューチャーの配列です。
+    updates: Arc<Mutex<FxHashMap<Id, UpdateInfo>>> // Idに対するコンポーネント変更情報です。
 }
 impl World {
     
@@ -87,7 +89,8 @@ impl World {
             points: Vec::new(), 
             chunks: Arc::new(Mutex::new(Vec::new())), 
             spawns: Arc::new(Mutex::new(Vec::new())), 
-            despawns: Arc::new(Mutex::new(Vec::new())) 
+            despawns: Arc::new(Mutex::new(Vec::new())),
+            updates: Arc::new(Mutex::new(FxHashMap::default()))
         }
     }
 
@@ -113,7 +116,7 @@ impl World {
         let res = DespawnRes::new(arc);
         self.despawns
         .lock()
-        .expect("重大なエラーが発生しました。[cwago_ecs/src/comp.rs : World::spawn/0]")
+        .expect("重大なエラーが発生しました。[cwago_ecs/src/comp.rs : World::despawn/0]")
         .push(res.clone());
         res
     }
@@ -124,55 +127,49 @@ impl World {
     }
 
     /// コンポーネントシステムを取得します。
-    /*pub fn component(&mut self) -> Component {
-
-    }*/
-
-    pub(crate) fn attach(&mut self, id: Id, values: FxHashMap<Type, Value>) -> Result<Id, Error> {
-        
-        let values = match self.point(id) {
-            Some(old_poi) => {
-                // 元データを取得します。
-                let old_values = {
-                    self.chunks.lock()
-                    .map_err(|_|{Error::InnerError("重大なエラーが発生しました。[cwago_ecs/src/comp.rs : World::attach/0]".to_string())})?
-                    .get(old_poi.chunk_idx)
-                    .ok_or(Error::InnerError("重大なエラーが発生しました。IdリストとChunkリストのデータに一致しない部分があります。[cwago_ecs/src/comp.rs : World::attach/1]".to_string()))?
-                    .values(old_poi.data_idx)
-                    .ok_or(Error::InnerError("重大なエラーが発生しました。Idリストとデータバッファのデータに一致しない部分があります。[cwago_ecs/src/comp.rs : World::attach/2]".to_string()))?
-                };
-                // 新しいデータと元データを統合します。
-                let mut values = values;
-                for (ty, value) in old_values {
-                    values.insert(ty, value);
-                }
-                // 元データを削除します。
-                self.remove(old_poi)?;
-                values
-            },
-            None => values,
-        };
-
-        // 新規作成
+    pub fn components(&mut self) -> Components {
+        Components::new(self)
     }
 
-    /// データの位置を取得します。
-    fn point(&self, id: Id) -> Option<Point> {
-        
-        if let Some(poi) = self.points.get(id.index()) {
-            return *poi;
-        }
-
-        None
+    /// エンティティの情報をスタックします。
+    /// 
+    /// # Arguments
+    /// 
+    /// * `id` - 更新するIdです。
+    /// * `info` - 更新情報です。
+    /// 
+    pub(crate) fn push_entity_info(&mut self, id: Id, info: UpdateInfo) {
+        self.updates
+        .lock()
+        .expect("重大なエラーが発生しました。[cwago_ecs/src/comp.rs : World::push_entity_info/0]")
+        .insert(id, info);
     }
+}
 
-    /// 指定位置のデータを削除します。
-    fn remove(&mut self, poi: Point) -> Result<(), Error> {
-        self.chunks.lock()
-        .map_err(|_|{Error::InnerError("重大なエラーが発生しました。[cwago_ecs/src/comp.rs : World::remove/0]".to_string())})?
-        .get_mut(poi.chunk_idx)
-        .ok_or(Error::InnerError("重大なエラーが発生しました。IdリストとChunkリストのデータに一致しない部分があります。[cwago_ecs/src/comp.rs : World::remove/1]".to_string()))?
-        .remove(poi.data_idx)
+
+
+// --------------------
+//
+// Components
+//
+// ====================
+
+
+
+/// コンポーネントシステムです。
+pub struct Components<'w> {
+    world: &'w mut World,
+}
+impl<'w> Components<'w> {
+    
+    /// 生成します。
+    /// 
+    /// # Arguments
+    /// 
+    /// * `world` - idを管理しているワールドシステムです。
+    /// 
+    fn new(world: &'w mut World) -> Self {
+        Components { world }
     }
 }
 
