@@ -3,13 +3,13 @@
 # Cwago.
 #
 # (C) 2022 CwagoCommunity.
-# cwago_core/cwago_core_utility/Cargo.toml
+# cwago/cwago_utility/Cargo.toml
 # ====================
 
-# cwago_core_utilityのCargo設定です。
+# cwago_utilityのCargo設定です。
 
 [package]
-name = "cwago_core_utility"
+name = "cwago_utility"
 version = "0.22.12"
 edition = "2021"
 authors = ["伊藤太一"]

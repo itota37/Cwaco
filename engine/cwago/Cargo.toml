@@ -3,13 +3,13 @@
 # Cwago.
 #
 # (C) 2022 CwagoCommunity.
-# cwago_core/Cargo.toml
+# cwago/Cargo.toml
 # ====================
 
-# cwago_coreワークスペースのCargo設定です。
+# cwagoワークスペースのCargo設定です。
 
 [workspace]
 
 members = [
-    "cargo_core_utility",
+    "cargo_utility",
 ]
