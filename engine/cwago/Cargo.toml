@@ -1,15 +1,15 @@
-# --------------------
+# -------------------------
 #
 # Cwago.
 #
-# (C) 2022 CwagoCommunity.
 # cwago/Cargo.toml
-# ====================
-
-# cwagoワークスペースのCargo設定です。
+# (C) 2022 CwagoCommunity.
+#
+# cwagoワークスペースの設定です。
+# =========================
 
 [workspace]
 
 members = [
-    "cargo_utility",
+    "cwago_utility",
 ]

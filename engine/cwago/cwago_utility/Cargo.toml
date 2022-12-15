@@ -1,18 +1,17 @@
-# --------------------
+# -------------------------
 #
 # Cwago.
 #
-# (C) 2022 CwagoCommunity.
 # cwago/cwago_utility/Cargo.toml
-# ====================
-
-# cwago_utilityのCargo設定です。
+# (C) 2022 CwagoCommunity.
+#
+# cwago_utilityの設定です。
+# =========================
 
 [package]
 name = "cwago_utility"
-version = "0.22.12"
+version = "0.1.0"
 edition = "2021"
-authors = ["伊藤太一"]
 
 [lib]
 crate-type = ["rlib"]

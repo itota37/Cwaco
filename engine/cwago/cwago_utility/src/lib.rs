@@ -1,3 +1,13 @@
+// -------------------------
+//
+// Cwago.
+//
+// cwago/cwago_utility/src/lib.rs
+// (C) 2022 CwagoCommunity.
+//
+//! cwago_utilityライブラリのメインファイルです。
+// =========================
+
 pub fn add(left: usize, right: usize) -> usize {
     left + right
 }
@@ -12,3 +22,4 @@ mod tests {
         assert_eq!(result, 4);
     }
 }
+
