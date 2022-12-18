@@ -36,14 +36,14 @@ mod tests {
         const SIZE_MAX: usize = 256;
         const COUNT_MAX: usize = 256;
 
-        let ptrs = [null_mut::<u8>(); 256];
+        let mut ptrs = [null_mut::<u8>(); 256];
 
         // サイズが1~256までで作成可能かテストします。
         for size in 1..SIZE_MAX {
             // 要素数が1~256までで作成可能かテストします。
             for count in 1..COUNT_MAX {
                 // 作成に成功するかテストします。
-                let pool = if let Some(pool) = Pool::new(size, count) {
+                let mut  pool = if let Some(pool) = Pool::new(size, count) {
                     pool
                 } else {
                     panic!("サイズ:{} 要素数:{} で作成に失敗しました。", size, count)
@@ -61,10 +61,10 @@ mod tests {
                     let ptr_max = ptrs[count - 1];
                     let ptr_less = unsafe { ptr_min.offset(-1) };
                     let ptr_over = unsafe { ptr_max.offset(1) };
-                    assert!(pool.is_manage(ptr_min), "最小アドレスが管理範囲からはじかれました。");
-                    assert!(pool.is_manage(ptr_max), "最大アドレスが管理範囲からはじかれました。");
-                    assert!(!pool.is_manage(ptr_less), "未満アドレスが管理範囲に含まれました。");
-                    assert!(!pool.is_manage(ptr_over), "超過アドレスが管理範囲に含まれました。");
+                    assert!(pool.is_managed(ptr_min), "最小アドレスが管理範囲からはじかれました。");
+                    assert!(pool.is_managed(ptr_max), "最大アドレスが管理範囲からはじかれました。");
+                    assert!(!pool.is_managed(ptr_less), "未満アドレスが管理範囲に含まれました。");
+                    assert!(!pool.is_managed(ptr_over), "超過アドレスが管理範囲に含まれました。");
 
                     // 確保したメモリに重複が無いかテストします。
                     for i in 0..count {
@@ -144,8 +144,6 @@ impl Pool {
         Some(Pool{ elements_count: count, current_count: count, layout, buffer, top })
     }
 
-    /// 
-
     /// 要素を確保します。
     /// 
     /// # 戻り値
@@ -153,17 +151,56 @@ impl Pool {
     /// 確保したメモリへのポインタ、または、ヌルポインタです。
     /// 
     fn alloc(&mut self) -> *mut u8 {
-        if self.top != null_mut() {
-            self.count -= 1;
-            let ptr = self.top;
-            unsafe { self.top = transmute::<*mut u8, *mut *mut u8>(*ptr) };
-            unsafe { transmute::<*mut *mut u8, *mut u8>(ptr) }
-        } else {
-            null_mut()
+        // 要素リストが空の場合、ヌルポインタを返します。
+        if self.top == null_mut() {
+            return null_mut();
         }
+        // リストから要素を1つ取り出し返します。
+        self.current_count -= 1;
+        let ptr = self.top;
+        unsafe { self.top = transmute::<*mut u8, *mut *mut u8>(*ptr) };
+        unsafe { transmute::<*mut *mut u8, *mut u8>(ptr) }
     }
 
-    
+    /// 要素を解放します。
+    /// 
+    /// # 引数
+    /// 
+    /// * pointer - 解放するポインタです。
+    /// 
+    /// # 戻り値
+    /// 
+    /// このプールで解放された場合、真を返します。
+    /// 
+    fn dealloc(&mut self, pointer: *mut u8) -> bool {
+        // ポインタがプールの管理外の場合、偽を返します。
+        if !self.is_managed(pointer) {
+            return false;
+        }
+        // リストに要素を挿入して、真を返します。
+        self.current_count += 1;
+        let ptr = unsafe { transmute::<*mut u8, *mut *mut u8>(pointer) };
+        unsafe { *ptr = transmute::<*mut *mut u8, *mut u8>(self.top) };
+        self.top = ptr;
+        true
+    }
+
+    /// 管理範囲に収まるか判定します。
+    /// 
+    /// # 引数
+    /// 
+    /// * pointer - 判定するポインタです。
+    /// 
+    /// # 戻り値
+    /// 
+    /// 範囲内の場合真を返します。
+    /// 
+    fn is_managed(&self, pointer: *mut u8) -> bool {
+        let min = unsafe { self.buffer.add(0) } as usize;
+        let max = unsafe { self.buffer.add(self.elements_count - 1) } as usize;
+        let adr = pointer as usize;
+        min <= adr && adr <= max
+    }
 }
 impl Drop for Pool {
     /// プールを解体します。
