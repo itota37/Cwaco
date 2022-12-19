@@ -50,7 +50,7 @@ mod tests {
                 };
 
                 // 使いまわしが可能かテストします。
-                for lap in 0..3usize {
+                for _lap in 0..3usize {
                     // メモリが要素数確保可能かテストします。
                     for i in 0..count {
                         ptrs[i] = pool.alloc();
@@ -63,6 +63,7 @@ mod tests {
                     let ptr_over = unsafe { ptr_max.offset(1) };
                     assert!(pool.is_managed(ptr_min), "最小アドレスが管理範囲からはじかれました。");
                     assert!(pool.is_managed(ptr_max), "最大アドレスが管理範囲からはじかれました。");
+                    println!("#size:{}, count:{}, lap:{}, adr:{}",size, count, _lap, ptr_less as usize);
                     assert!(!pool.is_managed(ptr_less), "未満アドレスが管理範囲に含まれました。");
                     assert!(!pool.is_managed(ptr_over), "超過アドレスが管理範囲に含まれました。");
 
@@ -76,7 +77,7 @@ mod tests {
 
                     // メモリを要素数解放可能かテストします。
                     for i in 0..count {
-                        assert!(pool.dealloc(unsafe { ptrs[i] }), "{}回目に確保したメモリを解放できませんでした。", i);
+                        assert!(pool.dealloc(ptrs[i]), "{}回目に確保したメモリを解放できませんでした。", i);
                     }
                 }
             }
@@ -87,13 +88,18 @@ mod tests {
 /// メモリ領域を複数の要素として管理します。
 #[derive(Debug)]
 struct Pool {
-    elements_count: usize, // 管理対象の要素数です。
-    current_count: usize,  // 現在確保している要素数です。
-    layout: Layout,        // メモリ領域のレイアウトです。
-    buffer: *mut u8,       // メモリ領域です。
-    top: *mut *mut u8,     // 要素の単方向連結リストの先頭です。
+    all_count: usize,   // 管理対象の要素数です。
+    free_count: usize,  // 現在確保している要素数です。
+    layout: Layout,     // メモリ領域のレイアウトです。
+    buffer: *mut u8,    // メモリ領域です。
+    top: *mut *mut u8,  // 要素の単方向連結リストの先頭です。
+    min_address: usize, // 管理するアドレスの最小値です。
+    max_address: usize, // 管理するアドレスの最大値です。
 }
 impl Pool {
+
+    const PTR_SIZE: usize = size_of::<*mut u8>(); // ポインタのサイズです。
+
     /// プールを作成します。
     ///
     /// # 引数
@@ -111,8 +117,7 @@ impl Pool {
         }
 
         // 1要素のサイズと整列長です。
-        const PTR_SIZE: usize = size_of::<*mut u8>();
-        let size = if size < PTR_SIZE { PTR_SIZE } else { size };
+        let size = if size < Self::PTR_SIZE { Self::PTR_SIZE } else { size };
         let align = size.next_power_of_two();
         
         // 領域のサイズと整列長です。
@@ -128,7 +133,7 @@ impl Pool {
         
         // 連結リストを作成します。
         // 
-        //     buffer [ptr][ptr][ptr]...
+        //    buffer [ptr][ptr][ptr]...
         //            | ^  | ^  | ^
         // null_mut <-' '--' '--' '-- top
         //
@@ -141,7 +146,11 @@ impl Pool {
             top = lpp; 
         }
 
-        Some(Pool{ elements_count: count, current_count: count, layout, buffer, top })
+        // 範囲のアドレスを計算します。
+        let min_address = unsafe { buffer.add(0) } as usize;
+        let max_address = unsafe { buffer.add(align * (count - 1)) } as usize;
+
+        Some(Pool{ all_count: count, free_count: count, layout, buffer, top, min_address, max_address })
     }
 
     /// 要素を確保します。
@@ -156,7 +165,7 @@ impl Pool {
             return null_mut();
         }
         // リストから要素を1つ取り出し返します。
-        self.current_count -= 1;
+        self.free_count -= 1;
         let ptr = self.top;
         unsafe { self.top = transmute::<*mut u8, *mut *mut u8>(*ptr) };
         unsafe { transmute::<*mut *mut u8, *mut u8>(ptr) }
@@ -178,7 +187,7 @@ impl Pool {
             return false;
         }
         // リストに要素を挿入して、真を返します。
-        self.current_count += 1;
+        self.free_count += 1;
         let ptr = unsafe { transmute::<*mut u8, *mut *mut u8>(pointer) };
         unsafe { *ptr = transmute::<*mut *mut u8, *mut u8>(self.top) };
         self.top = ptr;
@@ -196,10 +205,9 @@ impl Pool {
     /// 範囲内の場合真を返します。
     /// 
     fn is_managed(&self, pointer: *mut u8) -> bool {
-        let min = unsafe { self.buffer.add(0) } as usize;
-        let max = unsafe { self.buffer.add(self.elements_count - 1) } as usize;
         let adr = pointer as usize;
-        min <= adr && adr <= max
+        println!("min:{}, adr:{}", self.min_address, adr); // < DEBUG! >
+        self.min_address <= adr && adr <= self.max_address
     }
 }
 impl Drop for Pool {
