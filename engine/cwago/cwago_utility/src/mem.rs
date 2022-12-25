@@ -25,6 +25,9 @@ use std::{
 mod tests {
     use super::*;
 
+    const SIZE_MAX: usize = 256;
+    const COUNT_MAX: usize = 256;
+
     #[test]
     fn test_pool() {
         // サイズ0でプールの作成に失敗するかテストします。
@@ -33,54 +36,69 @@ mod tests {
         // 要素数0でプールの作成に失敗するかテストします。
         assert!(Pool::new(1, 0).is_none(), "要素数0で失敗しません。");
 
-        const SIZE_MAX: usize = 256;
-        const COUNT_MAX: usize = 256;
-
-        let mut ptrs = [null_mut::<u8>(); 256];
-
         // サイズが1~256までで作成可能かテストします。
         for size in 1..SIZE_MAX {
             // 要素数が1~256までで作成可能かテストします。
             for count in 1..COUNT_MAX {
-                // 作成に成功するかテストします。
-                let mut  pool = if let Some(pool) = Pool::new(size, count) {
-                    pool
-                } else {
-                    panic!("サイズ:{} 要素数:{} で作成に失敗しました。", size, count)
-                };
-
-                // 使いまわしが可能かテストします。
-                for _lap in 0..3usize {
-                    // メモリが要素数確保可能かテストします。
-                    for i in 0..count {
-                        ptrs[i] = pool.alloc();
-                        assert_ne!(ptrs[i], null_mut(), "{}回目のメモリ確保で失敗しました。", i);
-                    }
-                    // メモリ範囲を識別できるかテストします。
-                    let ptr_min = ptrs[0];
-                    let ptr_max = ptrs[count - 1];
-                    let ptr_less = unsafe { ptr_min.offset(-1) };
-                    let ptr_over = unsafe { ptr_max.offset(1) };
-                    assert!(pool.is_managed(ptr_min), "最小アドレスが管理範囲からはじかれました。");
-                    assert!(pool.is_managed(ptr_max), "最大アドレスが管理範囲からはじかれました。");
-                    println!("#size:{}, count:{}, lap:{}, adr:{}",size, count, _lap, ptr_less as usize);
-                    assert!(!pool.is_managed(ptr_less), "未満アドレスが管理範囲に含まれました。");
-                    assert!(!pool.is_managed(ptr_over), "超過アドレスが管理範囲に含まれました。");
-
-                    // 確保したメモリに重複が無いかテストします。
-                    for i in 0..count {
-                        unsafe { *ptrs[i] = i as u8 };
-                    }
-                    for i in 0..count {
-                        assert_eq!(unsafe{ *ptrs[i] }, i as u8, "{}回目に確保したメモリに設定されていた値は{}でした。", i, unsafe{ *ptrs[i] });
-                    }
-
-                    // メモリを要素数解放可能かテストします。
-                    for i in 0..count {
-                        assert!(pool.dealloc(ptrs[i]), "{}回目に確保したメモリを解放できませんでした。", i);
-                    }
-                }
+                test_pool_one(size, count)
             }
+        }
+    }
+    fn test_pool_one(size: usize, count: usize) {
+        // 作成に成功するかテストします。
+        let mut  pool = if let Some(pool) = Pool::new(size, count) {
+            pool
+        } else {
+            panic!("サイズ:{} 要素数:{} で作成に失敗しました。", size, count)
+        };
+
+        // 使いまわしが可能かテストします。
+        for _lap in 0..3usize {
+            
+            let mut ptrs = [null_mut::<u8>(); COUNT_MAX];
+
+            // メモリが要素数確保可能かテストします。
+            for i in 0..count {
+                ptrs[i] = pool.alloc();
+                assert_ne!(ptrs[i], null_mut(), "{}回目のメモリ確保で失敗しました。", i);
+            }
+
+            // 使用可能な要素が存在しないかテストします。
+            assert!(pool.is_empty(), "要素分メモリを確保したプールに非使用中の要素が存在します。");
+
+            // メモリ範囲を識別できるかテストします。
+            let ptr_min = *ptrs
+                .iter()
+                .filter(|&p| !p.is_null())
+                .min()
+                .expect("最小値が見つかりませんでした。");
+            let ptr_max = *ptrs
+                .iter()
+                .filter(|&p| !p.is_null())
+                .max()
+                .expect("最大値が見つかりませんでした。");
+            let ptr_less = unsafe { ptr_min.offset(-1) };
+            let ptr_over = unsafe { ptr_max.offset(1) };
+            assert!(pool.is_managed(ptr_min), "最小アドレスが管理範囲からはじかれました。");
+            assert!(pool.is_managed(ptr_max), "最大アドレスが管理範囲からはじかれました。");
+            assert!(!pool.is_managed(ptr_less), "未満アドレスが管理範囲に含まれました。");
+            assert!(!pool.is_managed(ptr_over), "超過アドレスが管理範囲に含まれました。");
+
+            // 確保したメモリに重複が無いかテストします。
+            for i in 0..count {
+                unsafe { *ptrs[i] = i as u8 };
+            }
+            for i in 0..count {
+                assert_eq!(unsafe{ *ptrs[i] }, i as u8, "{}回目に確保したメモリに設定されていた値は{}でした。", i, unsafe{ *ptrs[i] });
+            }
+
+            // メモリを要素数解放可能かテストします。
+            for i in 0..count {
+                assert!(pool.dealloc(ptrs[i]), "{}回目に確保したメモリを解放できませんでした。", i);
+            }
+
+            // 使用中の要素が存在しないかテストします。
+            assert!(pool.is_full(), "すべて解放されたプールに使用中の要素が存在します。");
         }
     }
 }
@@ -206,8 +224,27 @@ impl Pool {
     /// 
     fn is_managed(&self, pointer: *mut u8) -> bool {
         let adr = pointer as usize;
-        println!("min:{}, adr:{}", self.min_address, adr); // < DEBUG! >
         self.min_address <= adr && adr <= self.max_address
+    }
+
+    /// このプールのすべての要素が非使用中か判定します。
+    /// 
+    /// # 戻り値
+    /// 
+    /// すべての要素が未使用の際、真を返します。
+    /// 
+    fn is_full(&self) -> bool {
+        self.all_count == self.free_count
+    }
+
+    /// このプールに使用中の要素が無いか判定します。
+    /// 
+    /// # 戻り値
+    /// 
+    /// 使用中の要素が無い際、真を返します。
+    /// 
+    fn is_empty(&self) -> bool {
+        0usize == self.free_count
     }
 }
 impl Drop for Pool {
