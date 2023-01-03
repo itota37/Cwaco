@@ -2,24 +2,22 @@
 //
 // Cwago.
 //
-// cwago/cwago_utility/src/mem.rs
-// (C) 2022 CwagoCommunity.
+// cwago/cwago_utility/src/mem/pool.rs
+// (C) 2023 CwagoCommunity.
 //
-//! メモリシステムを提供します。
+//! メモリプールを提供します。
 // =========================
 
 use std::{
-    alloc::{
-        alloc,
-        dealloc,
-        Layout
-    },
+    alloc::Layout,
     mem::{
         size_of, 
         transmute
     },
     ptr::null_mut
 };
+use log::error;
+use super::os::OSMemory;
 
 #[cfg(test)]
 mod tests {
@@ -30,11 +28,9 @@ mod tests {
 
     #[test]
     fn test_pool() {
-        // サイズ0でプールの作成に失敗するかテストします。
-        assert!(Pool::new(0, 1).is_none(), "サイズ0で失敗しません。");
 
-        // 要素数0でプールの作成に失敗するかテストします。
-        assert!(Pool::new(1, 0).is_none(), "要素数0で失敗しません。");
+        std::env::set_var("RUST_LOG", "error");
+        env_logger::init();
 
         // サイズが1~256までで作成可能かテストします。
         for size in 1..SIZE_MAX {
@@ -45,12 +41,8 @@ mod tests {
         }
     }
     fn test_pool_one(size: usize, count: usize) {
-        // 作成に成功するかテストします。
-        let mut  pool = if let Some(pool) = Pool::new(size, count) {
-            pool
-        } else {
-            panic!("サイズ:{} 要素数:{} で作成に失敗しました。", size, count)
-        };
+        // 作成します。
+        let mut  pool = Pool::new(size, count);
 
         // 使いまわしが可能かテストします。
         for _lap in 0..3usize {
@@ -105,7 +97,7 @@ mod tests {
 
 /// メモリ領域を複数の要素として管理します。
 #[derive(Debug)]
-struct Pool {
+pub(super) struct Pool {
     all_count: usize,   // 管理対象の要素数です。
     free_count: usize,  // 現在確保している要素数です。
     layout: Layout,     // メモリ領域のレイアウトです。
@@ -127,11 +119,12 @@ impl Pool {
     /// 
     /// # 戻り値
     /// 
-    /// 成功した際はインスタンス、失敗した際はNoneが返ります。
-    fn new(size: usize, count: usize) -> Option<Pool> {
+    /// インスタンスが返ります。
+    pub(super) fn new(size: usize, count: usize) -> Pool {
         // サイズ、または、要素数0の場合作成されません。
         if size == 0 || count == 0 {
-            return None;
+            error!("メモリ要素サイズ:{}, 要素数:{} でメモリプールの作成に失敗しました。", size, count);
+            panic!()
         }
 
         // 1要素のサイズと整列長です。
@@ -144,9 +137,10 @@ impl Pool {
         
         // 領域を確保します。
         let layout = unsafe { Layout::from_size_align_unchecked(buf_size, buf_align) };
-        let buffer = unsafe { alloc(layout) };
+        let buffer = OSMemory::alloc(layout);
         if buffer == null_mut() {
-            return None;        
+            error!("メモリの確保に失敗しました。");
+            panic!()        
         }
         
         // 連結リストを作成します。
@@ -168,7 +162,15 @@ impl Pool {
         let min_address = unsafe { buffer.add(0) } as usize;
         let max_address = unsafe { buffer.add(align * (count - 1)) } as usize;
 
-        Some(Pool{ all_count: count, free_count: count, layout, buffer, top, min_address, max_address })
+        Pool{ 
+            all_count: count, 
+            free_count: count, 
+            layout, 
+            buffer, 
+            top, 
+            min_address, 
+            max_address 
+        }
     }
 
     /// 要素を確保します。
@@ -177,7 +179,7 @@ impl Pool {
     /// 
     /// 確保したメモリへのポインタ、または、ヌルポインタです。
     /// 
-    fn alloc(&mut self) -> *mut u8 {
+    pub(super) fn alloc(&mut self) -> *mut u8 {
         // 要素リストが空の場合、ヌルポインタを返します。
         if self.top == null_mut() {
             return null_mut();
@@ -199,7 +201,7 @@ impl Pool {
     /// 
     /// このプールで解放された場合、真を返します。
     /// 
-    fn dealloc(&mut self, pointer: *mut u8) -> bool {
+    pub(super) fn dealloc(&mut self, pointer: *mut u8) -> bool {
         // ポインタがプールの管理外の場合、偽を返します。
         if !self.is_managed(pointer) {
             return false;
@@ -222,7 +224,7 @@ impl Pool {
     /// 
     /// 範囲内の場合真を返します。
     /// 
-    fn is_managed(&self, pointer: *mut u8) -> bool {
+    pub(super) fn is_managed(&self, pointer: *mut u8) -> bool {
         let adr = pointer as usize;
         self.min_address <= adr && adr <= self.max_address
     }
@@ -233,7 +235,7 @@ impl Pool {
     /// 
     /// すべての要素が未使用の際、真を返します。
     /// 
-    fn is_full(&self) -> bool {
+    pub(super) fn is_full(&self) -> bool {
         self.all_count == self.free_count
     }
 
@@ -243,13 +245,24 @@ impl Pool {
     /// 
     /// 使用中の要素が無い際、真を返します。
     /// 
-    fn is_empty(&self) -> bool {
+    pub(super) fn is_empty(&self) -> bool {
         0usize == self.free_count
     }
+
+    /// 管理する最小アドレスを返します。
+    /// 
+    /// # 戻り値
+    /// 
+    /// 管理する最小アドレスです。
+    /// 
+    pub(super) fn min_address(&self) -> usize {
+        self.min_address
+    }
+    
 }
 impl Drop for Pool {
     /// プールを解体します。
     fn drop(&mut self) {
-        unsafe { dealloc(self.buffer, self.layout) };
+        OSMemory::dealloc(self.buffer, self.layout);
     }
 }

@@ -9,14 +9,7 @@
 // =========================
 
 pub mod mem;
+pub mod plu;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_mem() {
-        println!("test");
-        //assert_eq!(result, 4);
-    }
-}
+#[global_allocator]
+static ALLOCATOR: mem::Allocator = mem::Allocator::new();
