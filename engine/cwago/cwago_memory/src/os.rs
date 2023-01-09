@@ -2,7 +2,7 @@
 //
 // Cwago.
 //
-// cwago/cwago_utility/src/mem/sys.rs
+// cwago/cwago_memory/src/os.rs
 // (C) 2023 CwagoCommunity.
 //
 //! OSメモリのシングルトンを提供します。
@@ -17,7 +17,7 @@ use std::{
     sync::Once, ptr::null_mut
 };
 
-use log::error;
+use cwago_utility::log::error;
 
 
 // OSが提供するメモリのシングルトンです。

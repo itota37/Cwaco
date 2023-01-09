@@ -8,9 +8,5 @@
 //! cwago_utilityライブラリのメインファイルです。
 // =========================
 
+pub use log;
 pub mod hash;
-pub mod mem;
-pub mod plug;
-
-#[global_allocator]
-static ALLOCATOR: mem::Allocator = mem::Allocator::new();

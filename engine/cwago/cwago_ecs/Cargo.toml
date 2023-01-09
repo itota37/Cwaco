@@ -1,0 +1,22 @@
+# -------------------------
+#
+# Cwago.
+#
+# cwago/cwago_ecs/Cargo.toml
+# (C) 2022 CwagoCommunity.
+#
+# cwago_ecsの設定です。
+# =========================
+
+[package]
+name = "cwago_ecs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+cwago_utility = {path = "../cwago_utility"}
+serde = "1.0.152"
+env_logger = "0.10.0"

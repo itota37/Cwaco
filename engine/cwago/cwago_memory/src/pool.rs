@@ -2,7 +2,7 @@
 //
 // Cwago.
 //
-// cwago/cwago_utility/src/mem/pool.rs
+// cwago/cwago_memory/src/pool.rs
 // (C) 2023 CwagoCommunity.
 //
 //! メモリプールを提供します。
@@ -16,7 +16,7 @@ use std::{
     },
     ptr::null_mut
 };
-use log::error;
+use cwago_utility::log::error;
 use super::os::OSMemory;
 
 #[cfg(test)]

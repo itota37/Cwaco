@@ -2,7 +2,7 @@
 //
 // Cwago.
 //
-// cwago/cwago_utility/src/mem/fix.rs
+// cwago/cwago_memory/src/fix.rs
 // (C) 2023 CwagoCommunity.
 //
 //! 固定長メモリを提供します。
@@ -19,7 +19,7 @@ use std::{
         drop_in_place
     }
 };
-use log::error;
+use cwago_utility::log::error;
 use super::{
     os::OSMemory,
     pool::Pool

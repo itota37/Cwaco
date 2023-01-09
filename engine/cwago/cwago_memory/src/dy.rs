@@ -2,15 +2,18 @@
 //
 // Cwago.
 //
-// cwago/cwago_utility/src/mem/dy.rs
+// cwago/cwago_memory/src/dy.rs
 // (C) 2023 CwagoCommunity.
 //
 //! 可変長メモリを提供します。
 // =========================
 
-use std::{alloc::Layout, sync::Mutex};
+use std::{
+    alloc::Layout, 
+    sync::Mutex
+};
 
-use log::error;
+use cwago_utility::log::error;
 
 use super::{
     fix::FixMemory, 

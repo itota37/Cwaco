@@ -12,4 +12,7 @@
 
 members = [
     "cwago_utility",
+    "cwago_memory",
+    "cwago_serde",
+    "cwago_ecs",
 ]

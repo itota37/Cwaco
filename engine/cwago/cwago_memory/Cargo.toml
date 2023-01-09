@@ -1,0 +1,21 @@
+# -------------------------
+#
+# Cwago.
+#
+# cwago/cwago_memory/Cargo.toml
+# (C) 2022 CwagoCommunity.
+#
+# cwago_memoryの設定です。
+# =========================
+
+[package]
+name = "cwago_memory"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+cwago_utility = {path = "../cwago_utility"}
+env_logger = "0.10.0"
