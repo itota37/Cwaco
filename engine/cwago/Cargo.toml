@@ -3,7 +3,7 @@
 # Cwago.
 #
 # cwago/Cargo.toml
-# (C) 2022 CwagoCommunity.
+# (C) 2023 CwagoCommunity.
 #
 # cwagoワークスペースの設定です。
 # =========================
@@ -13,6 +13,6 @@
 members = [
     "cwago_utility",
     "cwago_memory",
-    "cwago_serde",
+    "cwago_comp",
     "cwago_ecs",
 ]

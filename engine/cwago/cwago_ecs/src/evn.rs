@@ -3,7 +3,7 @@
 // Cwago.
 //
 // cwago/cwago_ecs/src/evn.rs
-// (C) 2022 CwagoCommunity.
+// (C) 2023 CwagoCommunity.
 //
 //! イベントを提供します。
 // =========================

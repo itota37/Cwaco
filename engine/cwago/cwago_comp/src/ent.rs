@@ -2,8 +2,8 @@
 //
 // Cwago.
 //
-// cwago/cwago_ecs/src/ent.rs
-// (C) 2022 CwagoCommunity.
+// cwago/cwago_comp/src/ent.rs
+// (C) 2023 CwagoCommunity.
 //
 //! エンティティを提供します。
 // =========================

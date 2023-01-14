@@ -2,14 +2,14 @@
 #
 # Cwago.
 #
-# cwago/cwago_ecs/Cargo.toml
+# cwago/cwago_comp/Cargo.toml
 # (C) 2023 CwagoCommunity.
 #
-# cwago_ecsの設定です。
+# cwago_compの設定です。
 # =========================
 
 [package]
-name = "cwago_ecs"
+name = "cwago_comp"
 version = "0.1.0"
 edition = "2021"
 

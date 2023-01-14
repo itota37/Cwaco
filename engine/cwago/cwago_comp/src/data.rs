@@ -2,20 +2,20 @@
 //
 // Cwago.
 //
-// cwago/cwago_ecs/src/comp/data.rs
-// (C) 2022 CwagoCommunity.
+// cwago/cwago_comp/src/data.rs
+// (C) 2023 CwagoCommunity.
 //
 //! コンポーネントデータを提供します。
 // =========================
 
-use serde::{
+pub use serde::{
     Serialize, 
     Deserialize
 };
 
-
+use crate::ty::Info;
 
 /// コンポーネントデータトレイトです。
-pub trait Data<'de>: Clone + Serialize + Deserialize<'de> + 'static {
-    
+pub trait Data<'de>: Sized + Serialize + Deserialize<'de> + 'static {
+    fn info() -> &'static Info;
 }
